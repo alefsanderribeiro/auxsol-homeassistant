@@ -26,7 +26,11 @@ class AuxsolAuthError(AuxsolError):
 
 
 class AuxsolClient:
-    """Cliente mínimo para a API da Auxsol Cloud."""
+    """Cliente para a API da Auxsol Cloud.
+
+    Cobre usina, inversores, baterias, medidores, estações meteorológicas,
+    sensores PID e alarmes.
+    """
 
     def __init__(self, session: aiohttp.ClientSession, account: str, password: str) -> None:
         self._session = session
@@ -98,25 +102,156 @@ class AuxsolClient:
 
         raise AuxsolError(f"Falha inesperada em {path}")
 
-    # ---------------------------------------------------------------- leitura
+    async def _request_rows(self, path: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """Para endpoints que devolvem {rows: [...]}."""
+        data = await self._request(path, params)
+        if isinstance(data, dict):
+            return data.get("rows") or []
+        if isinstance(data, list):
+            return data
+        return []
+
+    # ------------------------------------------------------------------ conta
     async def async_validate(self) -> list[dict[str, Any]]:
         """Valida credenciais e devolve a lista de plantas."""
         await self._ensure_token(force=True)
         return await self.async_get_plants()
 
     async def async_get_plants(self) -> list[dict[str, Any]]:
-        data = await self._request("/archive/plant/list")
-        return (data or {}).get("rows") or []
+        return await self._request_rows("/archive/plant/list")
+
+    async def async_get_plant_detail(self, plant_id: int) -> dict[str, Any]:
+        data = await self._request(f"/archive/plant/findPlantById/{plant_id}")
+        return data or {}
 
     async def async_get_collectors(self) -> list[dict[str, Any]]:
-        data = await self._request("/archive/collector/list")
-        return (data or {}).get("rows") or []
+        return await self._request_rows("/archive/collector/list")
 
+    # -------------------------------------------------------------- inversores
     async def async_get_inverters(self) -> list[dict[str, Any]]:
-        data = await self._request("/archive/inverter/list")
-        return (data or {}).get("rows") or []
+        return await self._request_rows("/archive/inverter/list")
 
     async def async_get_realtime(self, sn: str) -> dict[str, Any] | None:
+        """Telemetria completa do inversor (potência, energia, rede, temperatura)."""
         return await self._request(
             "/analysis/inverterReport/findInverterRealTimeInfoBySnV1", {"sn": sn}
         )
+
+    async def async_get_inverter_curve(
+        self, sn: str, report_type: str = "0", data_time: str | None = None, data_items: str = "16399"
+    ) -> list[dict[str, Any]]:
+        params = {"sn": sn, "reportType": report_type, "dataItems": data_items}
+        if data_time:
+            params["dataTime"] = data_time
+        data = await self._request("/analysis/inverterReport/queryInverterCurveBySnV1", params)
+        return data or []
+
+    async def async_get_inverter_report(
+        self, sn: str, report_type: str = "1", data_time: str | None = None, data_items: str = "4032"
+    ) -> dict[str, Any]:
+        """Relatório tabular (dia/mês/ano) com totais por período."""
+        params = {"sn": sn, "reportType": report_type, "dataItems": data_items}
+        if data_time:
+            params["dataTime"] = data_time
+        data = await self._request("/analysis/inverterReport/queryInverterReport", params)
+        return data or {}
+
+    # ---------------------------------------------------------------- usina
+    async def async_get_plant_curve(
+        self, plant_id: int, report_type: str = "0", data_time: str | None = None, data_items: str = "16399"
+    ) -> list[dict[str, Any]]:
+        """Curva da usina: reportType 0=dia(5min), 1=mês, 2=ano."""
+        params = {"plantId": plant_id, "reportType": report_type, "dataItems": data_items}
+        if data_time:
+            params["dataTime"] = data_time
+        data = await self._request("/analysis/plantReport/queryPlantReportByPlantId", params)
+        return data or []
+
+    async def async_get_plant_current_all(self, plant_id: int) -> dict[str, Any]:
+        data = await self._request(
+            "/analysis/plantReport/queryPlantCurrentDataAll", {"plantId": plant_id}
+        )
+        return data or {}
+
+    # -------------------------------------------------------------- baterias
+    async def async_get_batteries(self) -> list[dict[str, Any]]:
+        return await self._request_rows("/archive/batDevice/list")
+
+    async def async_get_batteries_by_plant(self, plant_id: int) -> list[dict[str, Any]]:
+        data = await self._request(f"/archive/batDevice/getBatByPlant/{plant_id}")
+        return data or []
+
+    async def async_get_battery_current(self, sn: str) -> dict[str, Any] | None:
+        return await self._request(f"/archive/batDevice/getBatCurrentData/{sn}")
+
+    async def async_get_battery_curve(
+        self, sn: str, report_type: str = "0", data_time: str | None = None, data_items: str = "16399"
+    ) -> list[dict[str, Any]]:
+        params = {"sn": sn, "reportType": report_type, "dataItems": data_items}
+        if data_time:
+            params["dataTime"] = data_time
+        data = await self._request("/analysis/batReport/queryBatCurveBySn", params)
+        return data or []
+
+    # -------------------------------------------------------------- medidores
+    async def async_get_meters(self) -> list[dict[str, Any]]:
+        return await self._request_rows("/archive/meterDevice/list")
+
+    async def async_get_meters_by_plant(self, plant_id: int) -> list[dict[str, Any]]:
+        data = await self._request(f"/archive/meterDevice/getMeterByPlant/{plant_id}")
+        return data or []
+
+    async def async_get_meter_current(self, sn: str) -> dict[str, Any] | None:
+        return await self._request(f"/archive/meterDevice/getMeterCurrentData/{sn}")
+
+    async def async_get_meter_curve(
+        self, sn: str, report_type: str = "0", data_time: str | None = None, data_items: str = "16399"
+    ) -> list[dict[str, Any]]:
+        params = {"sn": sn, "reportType": report_type, "dataItems": data_items}
+        if data_time:
+            params["dataTime"] = data_time
+        data = await self._request("/analysis/meterDeviceReport/queryMeterCurveBySn", params)
+        return data or []
+
+    # ------------------------------------------------------- estação meteorológica
+    async def async_get_weather_stations(self) -> list[dict[str, Any]]:
+        return await self._request_rows("/archive/weatherDevice/list")
+
+    async def async_get_weather_by_plant(self, plant_id: int) -> list[dict[str, Any]]:
+        data = await self._request(f"/archive/weatherDevice/getWeatherByPlant/{plant_id}")
+        return data or []
+
+    async def async_get_weather_current(self, sn: str) -> dict[str, Any] | None:
+        return await self._request(f"/archive/weatherDevice/getWeatherCurrentData/{sn}")
+
+    # -------------------------------------------------------------- sensores PID
+    async def async_get_pids(self) -> list[dict[str, Any]]:
+        return await self._request_rows("/archive/pidDevice/list")
+
+    async def async_get_pid_current(self, sn: str) -> dict[str, Any] | None:
+        return await self._request(f"/archive/pidDevice/getPidCurrentData/{sn}")
+
+    # ---------------------------------------------------------------- alarmes
+    async def async_get_alarms(self) -> list[dict[str, Any]]:
+        return await self._request_rows("/analysis/alarm/list")
+
+    async def async_get_plant_alarms(self, plant_id: int) -> Any:
+        return await self._request(f"/analysis/alarm/plantCurrentAlarm/{plant_id}")
+
+    # -------------------------------------------------- esquemas de métricas
+    async def async_get_data_tree(self, kind: str, sn: str) -> list[dict[str, Any]]:
+        """Árvore de métricas suportadas por um tipo de equipamento.
+
+        kind: 'inverter' | 'meter' | 'pid' | 'weather'
+        """
+        paths = {
+            "inverter": f"/archive/dataitem/currentDataTreeSelect/{sn}",
+            "meter": f"/analysis/meterDeviceReport/currentDataTreeSelect/{sn}",
+            "pid": f"/analysis/pidDeviceReport/currentDataTreeSelect/{sn}",
+            "weather": f"/analysis/weatherDeviceReport/currentDataTreeSelect/{sn}",
+        }
+        path = paths.get(kind)
+        if not path:
+            return []
+        data = await self._request(path)
+        return data or []

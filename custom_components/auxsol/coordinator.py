@@ -12,29 +12,39 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import AuxsolAuthError, AuxsolClient, AuxsolError
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, INVENTORY_TTL
 
 _LOGGER = logging.getLogger(__name__)
 
-# Inventário (plantas/inversores/dataloggers) muda raramente; recarrega a cada 30 min.
-INVENTORY_TTL = 1800
+
+@dataclass
+class AuxsolDevice:
+    """Um equipamento físico descoberto na conta."""
+
+    kind: str  # inverter | battery | meter | weather | pid
+    sn: str
+    name: str
+    data: dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class AuxsolSnapshot:
-    """Fotografia completa de uma planta + inversor."""
+    """Fotografia da usina e de todos os seus equipamentos."""
 
     plant: dict[str, Any] = field(default_factory=dict)
     collector: dict[str, Any] = field(default_factory=dict)
     inverter: dict[str, Any] = field(default_factory=dict)
     realtime: dict[str, Any] = field(default_factory=dict)
+    devices: dict[str, AuxsolDevice] = field(default_factory=dict)
+    alarms: list[dict[str, Any]] = field(default_factory=list)
 
 
 class AuxsolCoordinator(DataUpdateCoordinator[AuxsolSnapshot]):
     """Busca dados da cloud Auxsol.
 
-    O inventário é cacheado por 30 min; cada ciclo busca só a telemetria
-    (1 requisição), o que permite intervalo curto sem sobrecarregar a API.
+    O inventário (usina, inversores, baterias, medidores, clima, PID) muda
+    raramente e fica em cache por 30 min. Cada ciclo busca só a telemetria.
     """
 
     def __init__(
@@ -52,10 +62,11 @@ class AuxsolCoordinator(DataUpdateCoordinator[AuxsolSnapshot]):
         )
         self.client = client
         self.plant_id = plant_id
-        self._inverter_sn: str | None = None
         self._plant: dict[str, Any] = {}
         self._collector: dict[str, Any] = {}
         self._inverter: dict[str, Any] = {}
+        self._inverter_sn: str | None = None
+        self._extra: dict[str, list[dict[str, Any]]] = {}
         self._inventory_at: float = 0.0
 
     async def _async_update_data(self) -> AuxsolSnapshot:
@@ -65,16 +76,57 @@ class AuxsolCoordinator(DataUpdateCoordinator[AuxsolSnapshot]):
 
             realtime = await self.client.async_get_realtime(self._inverter_sn) or {}
 
+            devices: dict[str, AuxsolDevice] = {}
+            if self._inverter_sn:
+                devices[f"inverter:{self._inverter_sn}"] = AuxsolDevice(
+                    kind="inverter",
+                    sn=self._inverter_sn,
+                    name=self._inverter.get("inverterName") or "Inversor",
+                    data=realtime,
+                    raw=self._inverter,
+                )
+
+            for kind, items in self._extra.items():
+                for item in items:
+                    sn = item.get("sn") or item.get("collectorSn") or item.get("deviceSn")
+                    if not sn:
+                        continue
+                    fetched = await self._fetch_device_current(kind, sn)
+                    devices[f"{kind}:{sn}"] = AuxsolDevice(
+                        kind=kind,
+                        sn=sn,
+                        name=item.get("name") or item.get("deviceName") or f"{kind} {sn}",
+                        data=fetched or {},
+                        raw=item,
+                    )
+
             return AuxsolSnapshot(
                 plant=self._plant,
                 collector=self._collector,
                 inverter=self._inverter,
                 realtime=realtime,
+                devices=devices,
+                alarms=[],
             )
         except AuxsolAuthError as err:
             raise UpdateFailed(f"Autenticação Auxsol falhou: {err}") from err
         except AuxsolError as err:
             raise UpdateFailed(str(err)) from err
+
+    async def _fetch_device_current(self, kind: str, sn: str) -> dict[str, Any] | None:
+        """Busca a leitura corrente conforme o tipo do equipamento."""
+        try:
+            if kind == "battery":
+                return await self.client.async_get_battery_current(sn)
+            if kind == "meter":
+                return await self.client.async_get_meter_current(sn)
+            if kind == "weather":
+                return await self.client.async_get_weather_current(sn)
+            if kind == "pid":
+                return await self.client.async_get_pid_current(sn)
+        except AuxsolError as err:
+            _LOGGER.debug("Falha ao ler %s %s: %s", kind, sn, err)
+        return None
 
     async def _refresh_inventory(self) -> None:
         plants = await self.client.async_get_plants()
@@ -99,9 +151,11 @@ class AuxsolCoordinator(DataUpdateCoordinator[AuxsolSnapshot]):
         self._collector = collectors[0] if collectors else {}
         self._inverter = inverters[0]
         self._inverter_sn = inverters[0].get("sn")
+        self._extra = {}
         self._inventory_at = time.monotonic()
-        _LOGGER.debug("Inventário atualizado: planta=%s inversor=%s",
-                      plant_id, self._inverter_sn)
+        _LOGGER.debug(
+            "Inventário: planta=%s inversor=%s", plant_id, self._inverter_sn
+        )
 
     def _pick_plant(self, plants: list[dict[str, Any]]) -> dict[str, Any]:
         if self.plant_id is not None:
