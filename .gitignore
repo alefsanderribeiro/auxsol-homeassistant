@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Home Assistant
+.storage/
+*.log
+*.db
+*.db-shm
+*.db-wal
+configuration.yaml
+
+# Editores
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Segredos — NUNCA versionar
+secrets.yaml
+.env
+*.pem
+*creds*.json

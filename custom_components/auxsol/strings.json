@@ -1,0 +1,61 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Auxsol Cloud",
+        "description": "Entre com as credenciais do portal auxsolcloud.com.",
+        "data": {
+          "account": "E-mail / conta",
+          "password": "Senha"
+        }
+      },
+      "plant": {
+        "title": "Selecione a planta",
+        "data": {
+          "plant_id": "Planta"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Conta ou senha inválidas.",
+      "cannot_connect": "Não foi possível conectar à Auxsol Cloud.",
+      "no_plants": "Nenhuma planta encontrada nesta conta.",
+      "unknown": "Erro inesperado."
+    },
+    "abort": {
+      "already_configured": "Esta planta já está configurada."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções da Auxsol",
+        "data": {
+          "scan_interval": "Intervalo de atualização (segundos)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": { "name": "Potência atual" },
+      "energy_today": { "name": "Geração hoje" },
+      "energy_month": { "name": "Geração no mês" },
+      "energy_year": { "name": "Geração no ano" },
+      "energy_total": { "name": "Geração total" },
+      "full_load_hours": { "name": "Horas de plena carga" },
+      "capacity": { "name": "Capacidade instalada" },
+      "grid_power": { "name": "Potência na rede" },
+      "grid_voltage": { "name": "Tensão da rede" },
+      "grid_current": { "name": "Corrente da rede" },
+      "grid_frequency": { "name": "Frequência da rede" },
+      "temperature": { "name": "Temperatura do inversor" },
+      "signal": { "name": "Sinal do datalogger" },
+      "earnings_today": { "name": "Economia hoje" },
+      "earnings_month": { "name": "Economia no mês" },
+      "earnings_total": { "name": "Economia total" },
+      "last_update": { "name": "Última leitura" },
+      "status": { "name": "Status" }
+    }
+  }
+}
