@@ -31,9 +31,36 @@
       "init": {
         "title": "Opções da Auxsol",
         "data": {
-          "scan_interval": "Intervalo de atualização (segundos)"
+          "scan_interval": "Intervalo de atualização (segundos)",
+          "baseline_kwh": "Energia de comissionamento a descontar (kWh)"
+        },
+        "data_description": {
+          "scan_interval": "Frequência de consulta à API. O datalogger publica a cada 5 minutos, então valores menores não trazem dados novos.",
+          "baseline_kwh": "Energia gerada antes de a usina ser cadastrada no portal. Deixe 0 se o total já bate com a soma dos dias. Só afeta as entidades de geração e economia total."
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": {"name": "Potência atual"},
+      "energy_today": {"name": "Geração hoje"},
+      "energy_month": {"name": "Geração no mês"},
+      "energy_year": {"name": "Geração no ano"},
+      "energy_total": {"name": "Geração total"},
+      "full_load_hours": {"name": "Horas de plena carga"},
+      "capacity": {"name": "Capacidade instalada"},
+      "grid_power": {"name": "Potência na rede"},
+      "grid_voltage": {"name": "Tensão da rede"},
+      "grid_current": {"name": "Corrente da rede"},
+      "grid_frequency": {"name": "Frequência da rede"},
+      "temperature": {"name": "Temperatura do inversor"},
+      "signal": {"name": "Sinal do datalogger"},
+      "earnings_today": {"name": "Economia hoje"},
+      "earnings_month": {"name": "Economia no mês"},
+      "earnings_total": {"name": "Economia total"},
+      "last_update": {"name": "Última leitura"},
+      "status": {"name": "Status"}
     }
   }
 }

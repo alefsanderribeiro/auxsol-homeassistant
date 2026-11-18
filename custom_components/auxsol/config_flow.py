@@ -14,6 +14,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import AuxsolAuthError, AuxsolClient, AuxsolError
 from .const import (
     CONF_ACCOUNT,
+    CONF_BASELINE,
     CONF_PASSWORD,
     CONF_PLANT_ID,
     DEFAULT_SCAN_INTERVAL,
@@ -106,7 +107,7 @@ class AuxsolConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class AuxsolOptionsFlow(OptionsFlow):
-    """Opções: intervalo de atualização."""
+    """Opções: intervalo de atualização e baseline de comissionamento."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -114,16 +115,21 @@ class AuxsolOptionsFlow(OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current = self.config_entry.options.get(
-            "scan_interval", DEFAULT_SCAN_INTERVAL
-        )
+        options = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Optional("scan_interval", default=current): vol.All(
-                        vol.Coerce(int), vol.Range(min=60, max=3600)
-                    )
+                    vol.Optional(
+                        "scan_interval",
+                        default=options.get("scan_interval", DEFAULT_SCAN_INTERVAL),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=60, max=3600)),
+                    # Sem default de propósito: campo vazio = detectar sozinho a
+                    # energia de comissionamento da usina.
+                    vol.Optional(
+                        CONF_BASELINE,
+                        description={"suggested_value": options.get(CONF_BASELINE)},
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100000.0)),
                 }
             ),
         )

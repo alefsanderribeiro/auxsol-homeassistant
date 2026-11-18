@@ -11,7 +11,13 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import AuxsolAuthError, AuxsolClient, AuxsolError
-from .const import CONF_ACCOUNT, CONF_PLANT_ID, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_ACCOUNT,
+    CONF_BASELINE,
+    CONF_PLANT_ID,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 from .coordinator import AuxsolCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +41,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AuxsolConfigEntry) -> bo
         client,
         entry.data.get(CONF_PLANT_ID),
         entry.options.get("scan_interval", DEFAULT_SCAN_INTERVAL),
+        # Sem valor explícito nas opções, o coordinator detecta sozinho
+        # a energia de comissionamento da usina.
+        entry.options.get(CONF_BASELINE),
     )
 
     try:

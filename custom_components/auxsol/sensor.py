@@ -30,7 +30,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import BASELINE_KWH, DOMAIN, MANUFACTURER, STATUS_MAP
+from .const import DOMAIN, MANUFACTURER, STATUS_MAP
 from .coordinator import AuxsolCoordinator, AuxsolDevice, AuxsolSnapshot
 
 _LOGGER = logging.getLogger(__name__)
@@ -107,18 +107,23 @@ def _status_text(value: Any) -> str | None:
 
 # ------------------------------------------------------------- inversor: valores
 def _corrected_total_energy(snapshot: AuxsolSnapshot) -> float | None:
-    """Geração total, sem a energia gerada antes do cadastro da usina."""
+    """Geração total, sem a energia gerada antes do cadastro da usina.
+
+    O baseline é por instalação e vem das opções (padrão 0, que desativa a
+    correção — assim o comportamento é correto para qualquer usuário).
+    """
     raw = _num(_dig(snapshot.realtime, "energyData", "yt"))
-    return round(raw - BASELINE_KWH, 3) if raw is not None else None
+    if raw is None:
+        return None
+    return round(raw - snapshot.baseline_kwh, 3)
 
 
 def _corrected_total_earnings(snapshot: AuxsolSnapshot) -> float | None:
-    """Economia total, descontado o período de comissionamento."""
+    """Economia total, descontada a energia do comissionamento."""
     raw = _num(_dig(snapshot.realtime, "energyData", "earnT"))
     if raw is None:
         return None
-    tariff = _num(_dig(snapshot.realtime, "price")) or 1.15
-    return round(raw - BASELINE_KWH * tariff, 2)
+    return round(raw - snapshot.baseline_kwh * snapshot.tariff, 2)
 
 
 @dataclass(frozen=True, kw_only=True)

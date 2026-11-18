@@ -1,7 +1,7 @@
 {
   "domain": "auxsol",
   "name": "Auxsol Solar",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "documentation": "https://github.com/alefsanderribeiro/auxsol-homeassistant",
   "issue_tracker": "https://github.com/alefsanderribeiro/auxsol-homeassistant/issues",
   "codeowners": [
